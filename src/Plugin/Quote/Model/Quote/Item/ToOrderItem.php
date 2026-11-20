@@ -2,44 +2,59 @@
 
 declare(strict_types=1);
 
-namespace Infrangible\CatalogProductPriceCalculation\Plugin\Quote\Model\Quote\Item;
-
-use Closure;
-use Magento\Quote\Model\Quote\Item;
-use Magento\Sales\Api\Data\OrderItemInterface;
-
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
+namespace Infrangible\CatalogProductPriceCalculation\Plugin\Quote\Model\Quote\Item;
+
+use Infrangible\CatalogProductPriceCalculation\Helper\Data;
+use Magento\Quote\Model\Quote\Address\Item as AddressItem;
+use Magento\Quote\Model\Quote\Item;
+use Magento\Quote\Model\Quote\Item\Option;
+use Magento\Sales\Api\Data\OrderItemInterface;
+use Magento\Sales\Model\Order\Item as OrderItem;
+
+/**
+ * Copies the calculation of the quote item to the product options of the order item.
  */
 class ToOrderItem
 {
-    /** @noinspection PhpUnusedParameterInspection */
-    public function aroundConvert(
-        Item\ToOrderItem $subject,
-        Closure $proceed,
-        $item,
-        $data = []
-    ): OrderItemInterface {
-        /** @var \Magento\Sales\Model\Order\Item $orderItem */
-        $orderItem = $proceed(
-            $item,
-            $data
-        );
-
-        if ($item instanceof Item) {
-            $additionalOptions = $item->getOptionByCode('price_calculation');
-
-            if ($additionalOptions && $additionalOptions->getValue()) {
-                $options = $orderItem->getProductOptions();
-
-                $options[ 'price_calculation' ] = $additionalOptions->getValue();
-
-                $orderItem->setProductOptions($options);
-            }
+    /**
+     * Adds the calculation of the quote item as product option "price_calculation" of the order item.
+     *
+     * @param Item\ToOrderItem $subject
+     * @param OrderItemInterface $result
+     * @param Item|AddressItem $item
+     *
+     * @return OrderItemInterface
+     * @noinspection PhpUnusedParameterInspection
+     */
+    public function afterConvert(Item\ToOrderItem $subject, OrderItemInterface $result, $item): OrderItemInterface
+    {
+        if (! $item instanceof Item || ! $result instanceof OrderItem) {
+            return $result;
         }
 
-        return $orderItem;
+        $option = $item->getOptionByCode(Data::QUOTE_ITEM_OPTION_CODE);
+
+        if (! $option instanceof Option) {
+            return $result;
+        }
+
+        $value = $option->getValue();
+
+        if (is_scalar($value) && (string)$value !== '') {
+            // Magento declares an array, but returns null for order items without product options
+            $options = (array)$result->getProductOptions();
+
+            $options[ Data::QUOTE_ITEM_OPTION_CODE ] = (string)$value;
+
+            $result->setProductOptions($options);
+        }
+
+        return $result;
     }
 }

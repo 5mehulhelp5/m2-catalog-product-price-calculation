@@ -1,6 +1,6 @@
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
  */
 
@@ -12,124 +12,91 @@ define([
 ], function ($, Component, customerData, calculation) {
     'use strict';
 
+    const SECTION = 'catalog-product-price-calculation';
+
+    /**
+     * Activates the calculations of the private content of the customer, with their priorities of the configuration.
+     */
     return Component.extend({
         defaults: {
-            calculations: []
+            calculations: {}
         },
 
         /** @inheritdoc */
         initialize: function () {
             this._super();
 
-            let reloadSection = false;
-
-            const cartObservable = customerData.get('cart');
-            if (cartObservable) {
-                const cart = cartObservable();
-                if (cart && cart.summary_count > 0) {
-                    reloadSection = true;
-                }
-            }
-
-            const customerObservable = customerData.get('customer');
-            if (customerObservable) {
-                const customer = customerObservable();
-                if (customer && customer.fullname) {
-                    reloadSection = true;
-                }
-            }
-
-            if (reloadSection) {
-                $(document).on('customer-data-reload', function(event, sectionNames) {
-                    for (let i = 0; i < sectionNames.length; i++) {
-                        if (sectionNames[i] === 'catalog-product-price-calculation') {
-                            setTimeout(function () {
-                                calculation.addActiveCalculation('default', 0);
-                            }, 100);
-                        }
+            if (this.hasPrivateContent()) {
+                $(document).on('customer-data-reload', function (event, sectionNames) {
+                    if (Array.isArray(sectionNames) && sectionNames.indexOf(SECTION) !== -1) {
+                        calculation.addActiveCalculation('default', 0);
                     }
                 });
-                customerData.reload(['catalog-product-price-calculation']);
+
+                customerData.reload([SECTION]);
             } else {
-                const self = this;
+                $(function () {
+                    const sectionData = customerData.get(SECTION)();
 
-                $(document).ready(function() {
-                    const catalogProductPriceSection = customerData.get('catalog-product-price-calculation');
-                    const catalogProductPriceData = catalogProductPriceSection();
-                    if (! $.isEmptyObject(catalogProductPriceData)) {
-                        console.debug(catalogProductPriceData);
-                        if (catalogProductPriceData.activeCalculationCodes) {
-                            for (let i = 0; i < catalogProductPriceData.activeCalculationCodes.length; i++) {
-                                const activeCalculationCode = catalogProductPriceData.activeCalculationCodes[i];
-                                self.setActiveCalculation(activeCalculationCode);
-                            }
-                        }
+                    if (sectionData && Array.isArray(sectionData.activeCalculationCodes)) {
+                        sectionData.activeCalculationCodes.forEach(this.setActiveCalculation, this);
                     }
+
                     calculation.addActiveCalculation('default', 0);
-                });
+                }.bind(this));
             }
 
-            customerData.get('catalog-product-price-calculation').subscribe(function (sectionInfo) {
-                if (sectionInfo.activeCalculationCodes) {
-                    const activeCalculations = calculation.getActiveCalculations()();
-                    let activeCalculation;
-                    let activeCalculationCode;
-                    const activeCalculationCodes = [];
-                    let i;
-
-                    for (i = 0; i < activeCalculations.length; i++) {
-                        activeCalculation = activeCalculations[i];
-                        activeCalculationCode = activeCalculation.code;
-                        activeCalculationCodes.push(activeCalculationCode);
-                    }
-
-                    for (i = 0; i < sectionInfo.activeCalculationCodes.length; i++) {
-                        activeCalculationCode = sectionInfo.activeCalculationCodes[i];
-                        if ($.inArray(activeCalculationCode, activeCalculationCodes) === -1) {
-                            this.setActiveCalculation(activeCalculationCode);
-                        }
-                    }
-
-                    for (i = 0; i < activeCalculations.length; i++) {
-                        activeCalculation = activeCalculations[i];
-                        activeCalculationCode = activeCalculation.code;
-                        if (activeCalculationCode !== 'default' &&
-                            $.inArray(activeCalculationCode, sectionInfo.activeCalculationCodes) === -1) {
-                            calculation.removeActiveCalculation(activeCalculationCode);
-                        }
-                    }
-                } else {
-                    calculation.resetActiveCalculations();
-                }
-            }, this);
+            customerData.get(SECTION).subscribe(this.updateActiveCalculations, this);
         },
 
+        /**
+         * Checks if the customer is logged in or has a cart, so that the section has to be reloaded.
+         */
+        hasPrivateContent: function () {
+            const cart = customerData.get('cart')();
+            const customer = customerData.get('customer')();
+
+            return !!(cart && cart.summary_count > 0) || !!(customer && customer.fullname);
+        },
+
+        /**
+         * Activates the calculations of the section and deactivates the others, except "default".
+         */
+        updateActiveCalculations: function (sectionData) {
+            if (!sectionData || !Array.isArray(sectionData.activeCalculationCodes)) {
+                calculation.resetActiveCalculations();
+
+                return;
+            }
+
+            sectionData.activeCalculationCodes.forEach(this.setActiveCalculation, this);
+
+            calculation.getActiveCalculations()().forEach(function (activeCalculation) {
+                if (activeCalculation.code !== 'default' &&
+                    sectionData.activeCalculationCodes.indexOf(activeCalculation.code) === -1) {
+
+                    calculation.removeActiveCalculation(activeCalculation.code);
+                }
+            });
+        },
+
+        /**
+         * Activates the calculation if the page knows its priority.
+         */
         setActiveCalculation: function (activeCalculationCode) {
-            if (this.calculations.hasOwnProperty(activeCalculationCode)) {
+            if (Object.prototype.hasOwnProperty.call(this.calculations, activeCalculationCode)) {
                 calculation.addActiveCalculation(activeCalculationCode, this.calculations[activeCalculationCode]);
             }
         },
 
         getActiveCalculationCodes: function () {
-            const activeCalculationCodes = [];
-
-            const activeCalculations = calculation.getActiveCalculations()();
-            for (let i = 0; i < activeCalculations.length; i++) {
-                activeCalculationCodes.push(activeCalculations[i].code);
-            }
-
-            return activeCalculationCodes;
+            return calculation.getActiveCalculations()().map(function (activeCalculation) {
+                return activeCalculation.code;
+            });
         },
 
         hasActiveCalculation: function (code) {
-            const activeCalculations = calculation.getActiveCalculations()();
-            for (let i = 0; i < activeCalculations.length; i++) {
-                if (code === activeCalculations[i].code) {
-                    return true;
-                }
-            }
-
-            return false;
+            return calculation.hasActiveCalculation(code);
         }
     });
 });

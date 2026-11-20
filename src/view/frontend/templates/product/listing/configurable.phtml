@@ -2,41 +2,41 @@
 
 declare(strict_types=1);
 
-use Infrangible\CatalogProductPriceCalculation\Block\Product\Renderer\Listing\Configurable;
-use Magento\Framework\Escaper;
-
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
  */
+
+use Infrangible\CatalogProductPriceCalculation\Block\Product\Renderer\Listing\Configurable;
+use Magento\Framework\Escaper;
+use Magento\Swatches\ViewModel\Product\Renderer\Configurable as ConfigurableViewModel;
 
 /** @var Escaper $escaper */
 /** @var Configurable $block */
 
 $product = $block->getProduct();
 ?>
-
 <?php if ($product && $product->isAvailable()): ?>
-    <?php $productId = $product->getId(); ?>
-    <?php /** @var \Magento\Swatches\ViewModel\Product\Renderer\Configurable $configurableViewModel */ ?>
-    <?php $configurableViewModel = $block->getData('configurable_view_model'); ?>
-    <div class="swatch-opt-<?= $escaper->escapeHtmlAttr($productId); ?>"
-         data-role="swatch-option-<?= $escaper->escapeHtmlAttr($productId); ?>"></div>
+    <?php $productId = $product->getId() ?>
+    <?php /** @var ConfigurableViewModel $configurableViewModel */ ?>
+    <?php $configurableViewModel = $block->getData('configurable_view_model') ?>
+    <div class="swatch-opt-<?= $escaper->escapeHtmlAttr((string)$productId) ?>"
+         data-role="swatch-option-<?= $escaper->escapeHtmlAttr((string)$productId) ?>"></div>
 
     <script type="text/x-magento-init">
         {
-            "[data-role=swatch-option-<?= $escaper->escapeJs($productId); ?>]": {
+            "[data-role=swatch-option-<?= $escaper->escapeJs((string)$productId) ?>]": {
                 "Magento_Swatches/js/swatch-renderer": {
                     "selectorProduct": ".product-item-details",
                     "onlySwatches": true,
                     "enableControlLabel": false,
-                    "numberToShow": <?=  $escaper->escapeJs($block->getNumberSwatchesPerProduct()); ?>,
-                    "jsonConfig": <?= /* @noEscape */ $block->getJsonConfig(); ?>,
-                    "jsonSwatchConfig": <?= /* @noEscape */ $block->getJsonSwatchConfig(); ?>,
-                    "mediaCallback": "<?= $escaper->escapeJs($escaper->escapeUrl($block->getMediaCallback())); ?>",
-                    "jsonSwatchImageSizeConfig": <?= /* @noEscape */ $block->getJsonSwatchSizeConfig(); ?>,
-                    "showTooltip": <?= $escaper->escapeJs($configurableViewModel->getShowSwatchTooltip()); ?>
+                    "numberToShow": <?= (int)$block->getNumberSwatchesPerProduct() ?>,
+                    "jsonConfig": <?= /* @noEscape */ $block->getJsonConfig() ?>,
+                    "jsonSwatchConfig": <?= /* @noEscape */ $block->getJsonSwatchConfig() ?>,
+                    "mediaCallback": "<?= $escaper->escapeJs($escaper->escapeUrl($block->getMediaCallback())) ?>",
+                    "jsonSwatchImageSizeConfig": <?= /* @noEscape */ $block->getJsonSwatchSizeConfig() ?>,
+                    "showTooltip": <?= $escaper->escapeJs($configurableViewModel->getShowSwatchTooltip()) ?>
                 }
             }
         }
@@ -44,11 +44,11 @@ $product = $block->getProduct();
 
     <script type="text/x-magento-init">
         {
-            "[data-role=priceBox][data-price-box=product-id-<?= $escaper->escapeJs($productId); ?>]": {
+            "[data-role=priceBox][data-price-box=product-id-<?= $escaper->escapeJs((string)$productId) ?>]": {
                 "priceBox": {
-                    "priceConfig": <?= /* @noEscape */ $block->getPriceConfigJson(); ?>
+                    "priceConfig": <?= /* @noEscape */ $block->getPriceConfigJson() ?>
                 }
             }
         }
     </script>
-<?php endif; ?>
+<?php endif ?>

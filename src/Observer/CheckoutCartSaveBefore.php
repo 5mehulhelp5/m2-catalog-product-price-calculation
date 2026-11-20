@@ -1,6 +1,12 @@
-<?php
+<?php /** @noinspection PhpDeprecationInspection The event of Magento passes the deprecated cart. */
 
 declare(strict_types=1);
+
+/**
+ * @author      Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
 
 namespace Infrangible\CatalogProductPriceCalculation\Observer;
 
@@ -12,27 +18,32 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\Quote\Model\Quote\Item;
 
 /**
- * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
- * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ * Sets the calculated prices of the items before the cart is saved.
  */
 class CheckoutCartSaveBefore implements ObserverInterface
 {
-    /** @var Data */
-    protected $helper;
-
-    public function __construct(Data $helper)
+    /**
+     * @param Data $helper
+     */
+    public function __construct(protected Data $helper)
     {
-        $this->helper = $helper;
     }
 
     /**
+     * Sets the calculated prices of the items of the cart.
+     *
+     * @param Observer $observer
+     *
+     * @return void
      * @throws LocalizedException
      */
-    public function execute(Observer $observer)
+    public function execute(Observer $observer): void
     {
-        /** @var Cart $cart */
         $cart = $observer->getData('cart');
+
+        if (! $cart instanceof Cart) {
+            return;
+        }
 
         $quote = $cart->getQuote();
 
@@ -40,12 +51,8 @@ class CheckoutCartSaveBefore implements ObserverInterface
 
         $calculatedItems = [];
 
-        /** @var Item $item */
         foreach ($items as $item) {
-            if ($this->helper->updateItemPrice(
-                $item,
-                $calculatedItems
-            )) {
+            if ($item instanceof Item && $this->helper->updateItemPrice($item, $calculatedItems)) {
                 $calculatedItems[] = $item;
             }
         }

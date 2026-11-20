@@ -2,27 +2,26 @@
 
 declare(strict_types=1);
 
-use Infrangible\CatalogProductPriceCalculation\Block\Product\Renderer\Listing\Downloadable;
-use Magento\Framework\Escaper;
-
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
  */
+
+use Infrangible\CatalogProductPriceCalculation\Block\Product\Renderer\Listing\Downloadable;
+use Magento\Framework\Escaper;
 
 /** @var Escaper $escaper */
 /** @var Downloadable $block */
 
-$product = $block->getProduct();
+$product = $block->getListProduct();
 ?>
-
-<?php if ($product && $product->isAvailable()): ?>
+<?php if ($product !== null && $product->isAvailable()): ?>
     <script type="text/x-magento-init">
         {
-            "[data-role=priceBox][data-price-box=product-id-<?= $escaper->escapeJs($product->getId()); ?>]": {
+            "[data-role=priceBox][data-price-box=product-id-<?= $escaper->escapeJs((string)$product->getId()) ?>]": {
                 "priceBox": {
-                    "priceConfig": <?= /* @noEscape */ $block->getPriceConfigJson(); ?>
+                    "priceConfig": <?= /* @noEscape */ $block->getPriceConfigJson() ?>
                 }
             }
         }

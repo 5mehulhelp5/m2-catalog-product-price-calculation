@@ -2,51 +2,58 @@
 
 declare(strict_types=1);
 
+/**
+ * @author      Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
 namespace Infrangible\CatalogProductPriceCalculation\Helper;
 
 use FeWeDev\Base\Arrays;
 use Infrangible\Core\Helper\Product;
 use Infrangible\Core\Helper\Stores;
+use Magento\Framework\Exception\LocalizedException;
+use Psr\Log\LoggerInterface;
 
 /**
- * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
- * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ * Adds the calculated prices to the configuration of the price boxes.
  */
 class Config
 {
-    /** @var Data */
-    protected $helper;
-
-    /** @var Product */
-    protected $productHelper;
-
-    /** @var Arrays */
-    protected $arrays;
-
-    /** @var Stores */
-    protected $storeHelper;
-
+    /**
+     * @param Data $helper
+     * @param Product $productHelper
+     * @param Arrays $arrays
+     * @param Stores $storeHelper
+     * @param LoggerInterface $logging
+     */
     public function __construct(
-        Data $helper,
-        Product $productHelper,
-        Arrays $arrays,
-        Stores $storeHelper
+        protected Data $helper,
+        protected Product $productHelper,
+        protected Arrays $arrays,
+        protected Stores $storeHelper,
+        protected LoggerInterface $logging
     ) {
-        $this->helper = $helper;
-        $this->productHelper = $productHelper;
-        $this->arrays = $arrays;
-        $this->storeHelper = $storeHelper;
     }
 
+    /**
+     * Adds the prices and tier prices of the calculations of the product as "calculatedPrices" and
+     * "calculatedTierPrices", with the prices of the product as calculation "default".
+     *
+     * A calculation that fails is skipped and logged.
+     *
+     * @param array $config
+     * @param \Magento\Catalog\Model\Product $product
+     * @phpstan-param array<string, mixed> $config
+     *
+     * @return array
+     * @phpstan-return array<string, mixed>
+     */
     public function processConfig(array $config, \Magento\Catalog\Model\Product $product): array
     {
         $config[ 'calculatedPrices' ] = [
-            'default' => $this->arrays->getValue(
-                $config,
-                'prices',
-                []
-            )
+            'default' => $this->arrays->getValue($config, 'prices', [])
         ];
 
         $config[ 'calculatedTierPrices' ] = [
@@ -58,107 +65,81 @@ class Config
         ];
 
         foreach ($this->helper->getCalculations() as $calculation) {
-            if ($calculation->hasProductCalculation($product)) {
-                $calculationCode = $calculation->getCode();
-
-                $config[ 'calculatedPrices' ][ $calculationCode ] = $this->helper->getProductCalculation(
-                    $calculation,
-                    $product
-                );
-
-                $config[ 'calculatedTierPrices' ][ $calculationCode ] = $this->helper->getProductTierCalculation(
-                    $calculation,
-                    $product
-                );
-
-                $config = $this->processSavePercent(
-                    $config,
-                    $calculationCode
-                );
+            if (! $calculation->hasProductCalculation($product)) {
+                continue;
             }
+
+            $calculationCode = $calculation->getCode();
+
+            try {
+                $calculatedPrices = $this->helper->getProductCalculation($calculation, $product);
+                $calculatedTierPrices = $this->helper->getProductTierCalculation($calculation, $product);
+            } catch (LocalizedException $exception) {
+                $this->logging->error($exception);
+
+                continue;
+            }
+
+            $config[ 'calculatedPrices' ][ $calculationCode ] = $calculatedPrices;
+            $config[ 'calculatedTierPrices' ][ $calculationCode ] = $this->addSavePercent(
+                $calculatedTierPrices,
+                $calculatedPrices[ 'finalPrice' ][ 'amount' ]
+            );
         }
 
         return $config;
     }
 
-    private function processSavePercent(array $config, string $code): array
+    /**
+     * Adds the percentage that each tier price saves compared to the price as "savePercent".
+     *
+     * @param array $tierPrices
+     * @param float $productPriceValue
+     * @phpstan-param array<int, array{qty: float, price: float, basePrice: float}> $tierPrices
+     *
+     * @return array
+     * @phpstan-return array<int, array<string, mixed>>
+     */
+    private function addSavePercent(array $tierPrices, float $productPriceValue): array
     {
-        $productPriceValue = $this->arrays->getValue(
-            $config,
-            sprintf(
-                'calculatedPrices:%s:finalPrice:amount',
-                $code
-            )
-        );
-
-        $tierPrices = $this->arrays->getValue(
-            $config,
-            sprintf(
-                'calculatedTierPrices:%s',
-                $code
-            ),
-            []
-        );
-
         foreach ($tierPrices as $key => $tierPrice) {
-            $tierPriceValue = $this->arrays->getValue(
-                $tierPrice,
-                'price',
-                $productPriceValue
-            );
+            $savePercent = $this->calculateSavePercent($productPriceValue, $tierPrice[ 'price' ]);
 
-            $config = $this->arrays->addDeepValue(
-                $config,
-                ['calculatedTierPrices', $code, $key, 'savePercent'],
-                $this->getSavePercent(
-                    $productPriceValue,
-                    $tierPriceValue
-                )
-            );
+            $tierPrices[ $key ][ 'savePercent' ] = [
+                'value'     => $savePercent,
+                'formatted' => $this->getFormattedSavePercent($savePercent)
+            ];
         }
 
-        return $config;
+        return $tierPrices;
     }
 
-    private function getSavePercent(float $productPriceValue, float $tierPriceValue): array
-    {
-        $savePercent = $this->calculateSavePercent(
-            $productPriceValue,
-            $tierPriceValue
-        );
-
-        return [
-            'value'     => $savePercent,
-            'formatted' => $this->getFormattedSavePercent($savePercent)
-        ];
-    }
-
+    /**
+     * Returns the percentage that the tier price saves compared to the price, rounded, or 0 without a price.
+     *
+     * @param float $productPriceValue
+     * @param float $tierPriceValue
+     *
+     * @return float
+     */
     public function calculateSavePercent(float $productPriceValue, float $tierPriceValue): float
     {
+        if ($productPriceValue <= 0) {
+            return 0.;
+        }
+
         return round(100 - ((100 / $productPriceValue) * $tierPriceValue));
     }
 
+    /**
+     * Returns the percentage formatted for the store view, without decimals.
+     *
+     * @param float $savePercent
+     *
+     * @return string
+     */
     public function getFormattedSavePercent(float $savePercent): string
     {
-        return $this->storeHelper->formatNumber(
-            $this->formatPercent($savePercent),
-            0
-        );
-    }
-
-    private function formatPercent(float $percent): int
-    {
-        return intval(
-            rtrim(
-                rtrim(
-                    number_format(
-                        $percent,
-                        2
-                    ),
-                    '0'
-                ),
-                '.'
-            )
-        );
+        return $this->storeHelper->formatNumber(round($savePercent), 0);
     }
 }

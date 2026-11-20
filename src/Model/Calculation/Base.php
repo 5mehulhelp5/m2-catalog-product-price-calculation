@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * @author      Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
 namespace Infrangible\CatalogProductPriceCalculation\Model\Calculation;
 
 use Infrangible\CatalogProductPriceCalculation\Model\Calculation\Prices\SimpleFactory;
@@ -10,59 +16,79 @@ use Magento\Framework\Pricing\Amount\AmountFactory;
 use Magento\Framework\Pricing\Amount\AmountInterface;
 
 /**
- * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
- * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ * Base class of calculations with a code and a priority.
  */
 abstract class Base implements CalculationInterface
 {
-    /** @var SimpleFactory */
-    protected $pricesFactory;
-
-    /** @var AmountFactory */
-    protected $amountFactory;
-
     /** @var string */
-    private $code;
+    private string $code = '';
 
     /** @var int */
-    private $priority;
+    private int $priority = 0;
 
+    /**
+     * @param SimpleFactory $pricesFactory
+     * @param AmountFactory $amountFactory
+     */
     public function __construct(
-        SimpleFactory $pricesFactory,
-        AmountFactory $amountFactory
+        protected SimpleFactory $pricesFactory,
+        protected AmountFactory $amountFactory
     ) {
-        $this->pricesFactory = $pricesFactory;
-        $this->amountFactory = $amountFactory;
     }
 
+    /**
+     * Returns the code.
+     *
+     * @return string
+     */
     public function getCode(): string
     {
         return $this->code;
     }
 
+    /**
+     * Sets the code.
+     *
+     * @param string $code
+     *
+     * @return void
+     */
     public function setCode(string $code): void
     {
         $this->code = $code;
     }
 
+    /**
+     * Returns the priority.
+     *
+     * @return int
+     */
     public function getPriority(): int
     {
         return $this->priority;
     }
 
+    /**
+     * Sets the priority.
+     *
+     * @param int $priority
+     *
+     * @return void
+     */
     public function setPriority(int $priority): void
     {
         $this->priority = $priority;
     }
 
+    /**
+     * Creates an amount without adjustments, rounded to two decimals.
+     *
+     * @param float $value
+     *
+     * @return AmountInterface
+     */
     protected function createAmount(float $value): AmountInterface
     {
-        return $this->amountFactory->create(
-            round(
-                $value,
-                2
-            )
-        );
+        return $this->amountFactory->create(round($value, 2));
     }
 }

@@ -2,93 +2,79 @@
 
 declare(strict_types=1);
 
+/**
+ * @author      Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
 namespace Infrangible\CatalogProductPriceCalculation\Plugin\Catalog\Block\Product;
 
 use FeWeDev\Base\Json;
 use Infrangible\CatalogProductPriceCalculation\Helper\Config;
 use Magento\Bundle\Model\Product\Type;
+use Magento\Bundle\Pricing\Price\FinalPrice as BundleFinalPrice;
 use Magento\Catalog\Pricing\Price\FinalPrice;
 use Magento\Catalog\Pricing\Price\RegularPrice;
 
 /**
- * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
- * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ * Adds the calculated prices to the price configuration of the product page.
  */
 class View
 {
-    /** @var Json */
-    protected $json;
-
-    /** @var Config */
-    protected $configHelper;
-
-    public function __construct(Json $json, Config $configHelper)
-    {
-        $this->json = $json;
-        $this->configHelper = $configHelper;
+    /**
+     * @param Json $json
+     * @param Config $configHelper
+     */
+    public function __construct(
+        protected Json $json,
+        protected Config $configHelper
+    ) {
     }
 
+    /**
+     * Adds the prices of the product without options and the calculated prices.
+     *
+     * @param \Magento\Catalog\Block\Product\View $subject
+     * @param string $result
+     *
+     * @return string
+     */
     public function afterGetJsonConfig(\Magento\Catalog\Block\Product\View $subject, string $result): string
     {
         $config = $this->json->decode($result);
-
         $product = $subject->getProduct();
 
+        if (! is_array($config)) {
+            return $result;
+        }
+
+        $priceInfo = $product->getPriceInfo();
+
         if (! $subject->hasOptions()) {
-            $priceInfo = $product->getPriceInfo();
-
-            /** @var RegularPrice $regularPriceModel */
-            $regularPriceModel = $priceInfo->getPrice('regular_price');
-
-            /** @var FinalPrice $finalPriceModel */
-            $finalPriceModel = $priceInfo->getPrice('final_price');
+            $regularAmount = $priceInfo->getPrice(RegularPrice::PRICE_CODE)->getAmount();
+            $finalAmount = $priceInfo->getPrice(FinalPrice::PRICE_CODE)->getAmount();
 
             $config[ 'prices' ] = [
-                'baseOldPrice' => [
-                    'amount'      => $regularPriceModel->getAmount()->getBaseAmount() * 1,
-                    'adjustments' => []
-                ],
-                'oldPrice'     => [
-                    'amount'      => $regularPriceModel->getAmount()->getValue() * 1,
-                    'adjustments' => []
-                ],
-                'basePrice'    => [
-                    'amount'      => $finalPriceModel->getAmount()->getBaseAmount() * 1,
-                    'adjustments' => []
-                ],
-                'finalPrice'   => [
-                    'amount'      => $finalPriceModel->getAmount()->getValue() * 1,
-                    'adjustments' => []
-                ]
+                'baseOldPrice' => ['amount' => $regularAmount->getBaseAmount(), 'adjustments' => []],
+                'oldPrice'     => ['amount' => $regularAmount->getValue(), 'adjustments' => []],
+                'basePrice'    => ['amount' => $finalAmount->getBaseAmount(), 'adjustments' => []],
+                'finalPrice'   => ['amount' => $finalAmount->getValue(), 'adjustments' => []]
             ];
         }
 
-        if ($product->getTypeId() === Type::TYPE_CODE) {
-            $priceInfo = $product->getPriceInfo();
+        $finalPrice = $priceInfo->getPrice(FinalPrice::PRICE_CODE);
 
-            /** @var \Magento\Bundle\Pricing\Price\FinalPrice $finalPriceModel */
-            $finalPriceModel = $priceInfo->getPrice('final_price');
+        if ($product->getTypeId() === Type::TYPE_CODE && $finalPrice instanceof BundleFinalPrice) {
+            $prices = is_array($config[ 'prices' ] ?? null) ? $config[ 'prices' ] : [];
 
-            $minimalPrice = $finalPriceModel->getMinimalPrice();
-            $maximalPrice = $finalPriceModel->getMaximalPrice();
+            $prices[ 'minPrice' ] = ['amount' => $finalPrice->getMinimalPrice()->getValue(), 'adjustments' => []];
+            $prices[ 'maxPrice' ] = ['amount' => $finalPrice->getMaximalPrice()->getValue(), 'adjustments' => []];
 
-            $config[ 'prices' ][ 'minPrice' ] = [
-                'amount'      => $minimalPrice->getValue() * 1,
-                'adjustments' => []
-            ];
-
-            $config[ 'prices' ][ 'maxPrice' ] = [
-                'amount'      => $maximalPrice->getValue() * 1,
-                'adjustments' => []
-            ];
+            $config[ 'prices' ] = $prices;
         }
 
-        $config = $this->configHelper->processConfig(
-            $config,
-            $product
-        );
-
-        return $this->json->encode($config);
+        /** @var array<string, mixed> $config */
+        return (string)$this->json->encode($this->configHelper->processConfig($config, $product));
     }
 }

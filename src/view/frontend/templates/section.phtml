@@ -2,17 +2,16 @@
 
 declare(strict_types=1);
 
-use Infrangible\CatalogProductPriceCalculation\Block\Section;
-
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
  */
 
+use Infrangible\CatalogProductPriceCalculation\Block\Section;
+
 /** @var Section $block */
 ?>
-
 <script type="text/x-magento-init">
     {
         "*": {
@@ -20,7 +19,7 @@ use Infrangible\CatalogProductPriceCalculation\Block\Section;
                 "components": {
                     "catalog-product-price-calculation": {
                         "component": "Infrangible_CatalogProductPriceCalculation/js/section",
-                        "calculations": <?= $block->getCalculationsConfig(); ?>
+                        "calculations": <?= /* @noEscape */ $block->getCalculationsConfig() ?>
                     }
                 }
             }

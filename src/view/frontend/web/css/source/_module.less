@@ -1,6 +1,6 @@
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
  */
 
@@ -8,7 +8,14 @@
     body.price-calculation-visibility {
         .price-box {
             .price-container.price-calculation {
-                > .price-wrapper[data-price-type="baseOldPrice"], .price-wrapper[data-price-type="oldPrice"], .price-wrapper[data-price-type="basePrice"], .price-wrapper[data-price-type="finalPrice"], .price-wrapper[data-price-type="minPrice"], .price-wrapper[data-price-type="maxPrice"] {
+                > .price-wrapper[data-price-type='baseOldPrice'],
+                .price-wrapper[data-price-type='oldPrice'],
+                .price-wrapper[data-price-type='basePrice'],
+                .price-wrapper[data-price-type='finalPrice'],
+                .price-wrapper[data-price-type='minPrice'],
+                /* phpcs:ignore Magento2.Less.TypeSelectors -- the price types of Magento are written in camel case */
+                .price-wrapper[data-price-type='maxPrice'] {
+                    /* phpcs:ignore Magento2.Less.SemicolonSpacing -- a selector, not a property */
                     > :not(.calculated) {
                         visibility: hidden;
                     }

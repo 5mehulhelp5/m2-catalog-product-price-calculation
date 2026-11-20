@@ -1,6 +1,6 @@
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
  */
 
@@ -11,28 +11,34 @@ define([
 ], function ($, calculation) {
     'use strict';
 
-    let activeCalculationCodes;
+    return $.widget('infrangible.priceBox', $.mage.priceBox, {
+        options: {
+            /**
+             * The configuration of the price box, with the prices of the calculations by their codes.
+             *
+             * @type {?{calculatedPrices: Object, calculatedTierPrices: Object, tierPrices: Array}}
+             */
+            priceConfig: null
+        },
 
-    $.widget('infrangible.priceBox', $.mage.priceBox, {
         activeCalculationCode: null,
+        activeCalculationCodes: null,
 
-        _init: function initPriceBox() {
-            if (! this.options.priceConfig.hasOwnProperty('calculatedPrices')) {
-                this.options.priceConfig.calculatedPrices = [];
+        _init: function () {
+            if (!this.options.priceConfig) {
+                this.options.priceConfig = {};
             }
+
+            if (!this.options.priceConfig.calculatedPrices) {
+                this.options.priceConfig.calculatedPrices = {};
+            }
+
             this.options.priceConfig.calculatedPrices['default'] = this.options.prices;
 
             calculation.getActiveCalculations().subscribe(function (activeCalculations) {
-                console.debug(activeCalculations);
-
-                activeCalculationCodes = [];
-
-                for (let i = 0; i < activeCalculations.length; i++) {
-                    const activeCalculation = activeCalculations[i];
-                    console.debug(activeCalculation);
-
-                    activeCalculationCodes.push(activeCalculation.code);
-                }
+                this.activeCalculationCodes = activeCalculations.map(function (activeCalculation) {
+                    return activeCalculation.code;
+                });
 
                 this.updatePrice();
                 this.reloadPrice();
@@ -44,7 +50,7 @@ define([
             this._super();
         },
 
-        updatePrice: function updatePrice(newPrices) {
+        updatePrice: function (newPrices) {
             const selectedCalculationCode = this.updateCalculationPrices();
 
             if (newPrices !== undefined || this.activeCalculationCode !== selectedCalculationCode) {
@@ -54,57 +60,48 @@ define([
             }
         },
 
-        updateProductTierPrice: function updateProductTierPrice() {
-            const self = this;
-
-            const selectedCalculationCode = self.updateCalculationPrices();
+        updateProductTierPrice: function () {
+            const selectedCalculationCode = this.updateCalculationPrices();
 
             this._super();
 
             this.activeCalculationCode = selectedCalculationCode;
         },
 
-        updateCalculationPrices: function updateCalculationPrices() {
-            let selectedCalculationCode;
+        /**
+         * Uses the prices of the active calculation with the highest priority that has prices of the product.
+         */
+        updateCalculationPrices: function () {
+            if (!Array.isArray(this.activeCalculationCodes)) {
+                return undefined;
+            }
 
-            console.debug(activeCalculationCodes);
+            if (this.activeCalculationCodes.length === 0) {
+                this.options.priceTemplate = this.options.priceTemplateInit;
 
-            if ($.isArray(activeCalculationCodes)) {
-                if (activeCalculationCodes.length === 0) {
-                    this.options.priceTemplate = this.options.priceTemplateInit;
-                    return;
-                } else {
-                    this.options.priceTemplate = this.options.priceTemplateCalculated;
-                }
+                return undefined;
+            }
 
-                console.debug(this.options.priceConfig.calculatedPrices);
-                console.debug(this.options.priceConfig.calculatedTierPrices);
+            this.options.priceTemplate = this.options.priceTemplateCalculated;
 
-                for (let i = 0; i < activeCalculationCodes.length; i++) {
-                    const activeCalculationCode = activeCalculationCodes[i];
+            const calculatedPrices = this.options.priceConfig.calculatedPrices || {};
+            const calculatedTierPrices = this.options.priceConfig.calculatedTierPrices;
 
-                    if (activeCalculationCode in this.options.priceConfig.calculatedPrices) {
-                        const calculationPrices = this.options.priceConfig.calculatedPrices[activeCalculationCode];
-                        console.debug(calculationPrices);
-                        this.options.prices = calculationPrices;
+            for (let i = 0; i < this.activeCalculationCodes.length; i++) {
+                const activeCalculationCode = this.activeCalculationCodes[i];
 
-                        if (this.options.priceConfig.calculatedTierPrices) {
-                            const calculationTierPrices =
-                                this.options.priceConfig.calculatedTierPrices[activeCalculationCode];
-                            console.debug(calculationTierPrices);
-                            this.options.priceConfig.tierPrices = calculationTierPrices;
-                        }
+                if (Object.prototype.hasOwnProperty.call(calculatedPrices, activeCalculationCode)) {
+                    this.options.prices = calculatedPrices[activeCalculationCode];
 
-                        selectedCalculationCode = activeCalculationCode;
-
-                        break;
+                    if (calculatedTierPrices) {
+                        this.options.priceConfig.tierPrices = calculatedTierPrices[activeCalculationCode];
                     }
+
+                    return activeCalculationCode;
                 }
             }
 
-            return selectedCalculationCode;
+            return undefined;
         }
     });
-
-    return $.infrangible.priceBox;
 });

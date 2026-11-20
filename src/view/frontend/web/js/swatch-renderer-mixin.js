@@ -1,6 +1,6 @@
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
  */
 
@@ -10,22 +10,25 @@ define([
 ], function ($, calculation) {
     'use strict';
 
-    let activeCalculationCodes;
+    /**
+     * The configuration of the configurable product, with the prices of the calculations by their codes.
+     *
+     * @typedef {Object} SwatchJsonConfig
+     * @property {?Object} calculatedPrices the prices of the product by calculation code
+     * @property {?Object} calculatedOptionPrices the prices of the products of the options by calculation code
+     * @property {Object} prices the prices that the price box shows
+     * @property {Object} optionPrices the prices of the products of the options that the price box shows
+     */
 
     return function (widget) {
-        $.widget('mage.SwatchRenderer', widget, {
-            _init: function() {
+        return $.widget('mage.SwatchRenderer', widget, {
+            activeCalculationCodes: null,
+
+            _init: function () {
                 calculation.getActiveCalculations().subscribe(function (activeCalculations) {
-                    console.debug(activeCalculations);
-
-                    activeCalculationCodes = [];
-
-                    for (let i = 0; i < activeCalculations.length; i++) {
-                        const activeCalculation = activeCalculations[i];
-                        console.debug(activeCalculation);
-
-                        activeCalculationCodes.push(activeCalculation.code);
-                    }
+                    this.activeCalculationCodes = activeCalculations.map(function (activeCalculation) {
+                        return activeCalculation.code;
+                    });
 
                     this._UpdatePrice();
                 }, this);
@@ -33,68 +36,58 @@ define([
                 this._super();
             },
 
-            _OnClick: function($this, $widget) {
+            _OnClick: function ($this, $widget) {
                 const $priceBox = $widget.element.parents(this.options.selectorProduct)
                     .find(this.options.selectorProductPrice);
 
-                if (! $priceBox.is(':data(mage-priceBox)')) {
+                if (!$priceBox.is(':data(mage-priceBox)')) {
                     $priceBox.data('mage-priceBox', true);
                 }
 
                 this._super($this, $widget);
             },
 
-            _UpdatePrice: function() {
+            _UpdatePrice: function () {
                 this.activeCalculationCode = this.updateCalculationPrices();
 
                 this._super();
             },
 
-            updateCalculationPrices: function() {
+            /**
+             * Uses the prices of the active calculation with the highest priority that has prices of the product and
+             * of its products.
+             */
+            updateCalculationPrices: function () {
+                if (!Array.isArray(this.activeCalculationCodes)) {
+                    return undefined;
+                }
+
+                /** @type {SwatchJsonConfig} */
+                const jsonConfig = this.options.jsonConfig;
+                const calculatedPrices = jsonConfig.calculatedPrices || {};
+                const calculatedOptionPrices = jsonConfig.calculatedOptionPrices || {};
                 let selectedCalculationCode;
 
-                console.debug(activeCalculationCodes);
+                const priceCode = this.activeCalculationCodes.find(function (code) {
+                    return Object.prototype.hasOwnProperty.call(calculatedPrices, code);
+                });
 
-                if ($.isArray(activeCalculationCodes)) {
-                    console.debug(this.options.jsonConfig.calculatedPrices);
-                    console.debug(this.options.jsonConfig.calculatedOptionPrices);
+                if (priceCode !== undefined) {
+                    jsonConfig.prices = calculatedPrices[priceCode];
+                    selectedCalculationCode = priceCode;
+                }
 
-                    let i, activeCalculationCode;
+                const optionPriceCode = this.activeCalculationCodes.find(function (code) {
+                    return Object.prototype.hasOwnProperty.call(calculatedOptionPrices, code);
+                });
 
-                    for (i = 0; i < activeCalculationCodes.length; i++) {
-                        activeCalculationCode = activeCalculationCodes[i];
-
-                        if (activeCalculationCode in this.options.jsonConfig.calculatedPrices) {
-                            const calculatedPrices = this.options.jsonConfig.calculatedPrices[activeCalculationCode];
-                            console.debug(calculatedPrices);
-                            this.options.jsonConfig.prices = calculatedPrices;
-
-                            selectedCalculationCode = activeCalculationCode;
-
-                            break;
-                        }
-                    }
-
-                    for (i = 0; i < activeCalculationCodes.length; i++) {
-                        activeCalculationCode = activeCalculationCodes[i];
-
-                        if (activeCalculationCode in this.options.jsonConfig.calculatedOptionPrices) {
-                            const calculatedOptionPrices =
-                                this.options.jsonConfig.calculatedOptionPrices[activeCalculationCode];
-                            console.debug(calculatedOptionPrices);
-                            this.options.jsonConfig.optionPrices = calculatedOptionPrices;
-
-                            selectedCalculationCode = activeCalculationCode;
-
-                            break;
-                        }
-                    }
+                if (optionPriceCode !== undefined) {
+                    jsonConfig.optionPrices = calculatedOptionPrices[optionPriceCode];
+                    selectedCalculationCode = optionPriceCode;
                 }
 
                 return selectedCalculationCode;
             }
         });
-
-        return $.mage.SwatchRenderer;
     };
 });
