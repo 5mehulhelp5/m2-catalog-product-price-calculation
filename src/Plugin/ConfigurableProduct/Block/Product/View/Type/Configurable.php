@@ -59,7 +59,6 @@ class Configurable
             return $result;
         }
 
-        /** @var array<string, mixed> $config */
         $config = $this->configHelper->processConfig($config, $subject->getProduct());
 
         $calculatedOptionPrices = [];
